@@ -1,0 +1,26 @@
+version: "3.9"
+
+# Development overrides — hot reload, exposed ports, source mounts
+services:
+  api:
+    build:
+      target: development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - document_storage:/data/documents
+    environment:
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - LOG_FORMAT=console
+
+  worker:
+    build:
+      target: development
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    volumes:
+      - .:/app
+      - document_storage:/data/documents
+    environment:
+      - APP_ENV=development
+      - LOG_FORMAT=console

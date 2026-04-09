@@ -1,0 +1,69 @@
+# ── Stage 1: base ─────────────────────────────────────────────────────────────
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ── Stage 2: build dependencies ───────────────────────────────────────────────
+FROM base AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/base.txt requirements/base.txt
+RUN pip install --prefix=/install -r requirements/base.txt
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_lg --target /install/lib/python3.11/site-packages
+
+# ── Stage 3: development ──────────────────────────────────────────────────────
+FROM base AS development
+
+COPY --from=builder /install /usr/local
+COPY requirements/dev.txt requirements/dev.txt
+RUN pip install -r requirements/dev.txt
+
+COPY . .
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# ── Stage 4: production ───────────────────────────────────────────────────────
+FROM base AS production
+
+COPY --from=builder /install /usr/local
+
+# Create non-root user
+RUN groupadd --gid 1001 fdis && \
+    useradd --uid 1001 --gid fdis --shell /bin/bash --create-home fdis
+
+COPY --chown=fdis:fdis . .
+
+RUN mkdir -p /data/documents && chown -R fdis:fdis /data
+
+USER fdis
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health/live || exit 1
+
+CMD ["gunicorn", "app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "2", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

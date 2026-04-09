@@ -1,0 +1,61 @@
+# ── Stage 1: base ─────────────────────────────────────────────────────────────
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Tesseract OCR runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    poppler-utils \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ── Stage 2: build dependencies ───────────────────────────────────────────────
+FROM base AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/base.txt requirements/base.txt
+RUN pip install --prefix=/install -r requirements/base.txt
+
+RUN python -m spacy download en_core_web_lg --target /install/lib/python3.11/site-packages
+
+# ── Stage 3: development ──────────────────────────────────────────────────────
+FROM base AS development
+
+COPY --from=builder /install /usr/local
+COPY requirements/dev.txt requirements/dev.txt
+RUN pip install -r requirements/dev.txt
+
+COPY . .
+
+CMD ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+# ── Stage 4: production ───────────────────────────────────────────────────────
+FROM base AS production
+
+COPY --from=builder /install /usr/local
+
+RUN groupadd --gid 1001 fdis && \
+    useradd --uid 1001 --gid fdis --shell /bin/bash --create-home fdis
+
+COPY --chown=fdis:fdis . .
+
+RUN mkdir -p /data/documents && chown -R fdis:fdis /data
+
+USER fdis
+
+CMD ["celery", "-A", "app.tasks.celery_app", "worker", \
+     "--loglevel=info", \
+     "--concurrency=4", \
+     "--max-tasks-per-child=50"]
