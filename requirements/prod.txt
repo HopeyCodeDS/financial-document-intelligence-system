@@ -1,0 +1,5 @@
+-r base.txt
+
+# ── Production extras ─────────────────────────────────────────────────────────
+sentry-sdk[fastapi]==2.19.2
+flower==2.0.1

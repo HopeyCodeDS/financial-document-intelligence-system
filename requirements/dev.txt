@@ -1,0 +1,20 @@
+-r base.txt
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+httpx==0.28.1
+factory-boy==3.3.1
+testcontainers[postgres,redis]==4.9.0
+Faker==33.1.0
+
+# ── Code quality ──────────────────────────────────────────────────────────────
+ruff==0.9.1
+mypy==1.14.1
+pre-commit==4.0.1
+
+# ── Dev utilities ─────────────────────────────────────────────────────────────
+ipython==8.31.0
+watchfiles==1.0.3
