@@ -4,10 +4,9 @@ Document ORM model — represents an uploaded financial document.
 from __future__ import annotations
 
 import enum
-import uuid
 
 from sqlalchemy import Enum, String, Text, Integer
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin

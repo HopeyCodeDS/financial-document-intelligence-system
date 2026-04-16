@@ -10,8 +10,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import pool
 
 # Import all models so Alembic can detect schema changes via Base.metadata
 from app.models.base import Base

@@ -29,7 +29,7 @@ class DocumentRepository(BaseRepository[Document]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[Document], int]:
-        from sqlalchemy import func, select
+        from sqlalchemy import func
 
         query = select(Document)
         count_query = select(func.count()).select_from(Document)

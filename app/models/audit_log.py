@@ -12,7 +12,7 @@ from __future__ import annotations
 import enum
 import uuid
 
-from sqlalchemy import Enum, Integer, String, Text
+from sqlalchemy import Enum, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import DateTime, func
