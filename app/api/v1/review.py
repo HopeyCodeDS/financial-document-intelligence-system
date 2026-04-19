@@ -16,7 +16,7 @@ from app.core.exceptions import ReviewAlreadyDecidedError, ReviewTaskNotFoundErr
 from app.db.repositories.review import ReviewDecisionRepository, ReviewTaskRepository
 from app.db.session import get_db_session
 from app.dependencies import CurrentUser
-from app.models.audit_log import AuditEventCategory, AuditEventStatus
+from app.models.audit_log import AuditEventStatus
 from app.models.review import ReviewDecision, ReviewTaskStatus
 from app.schemas.review import (
     ReviewDecisionResponse,

@@ -21,12 +21,11 @@ from app.core.exceptions import (
 )
 from app.db.repositories.document import DocumentRepository
 from app.db.session import get_db_session
-from app.dependencies import CurrentUser, SettingsDep, get_app_settings
+from app.dependencies import CurrentUser, get_app_settings
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.schemas.document import (
     DocumentListResponse,
     DocumentStatusResponse,
-    DocumentTypeQuery,
     DocumentUploadResponse,
 )
 from app.services.storage import LocalStorageService
