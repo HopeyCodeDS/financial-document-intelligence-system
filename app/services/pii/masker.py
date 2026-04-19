@@ -12,10 +12,8 @@ the pipeline must halt rather than passing unmasked text to the LLM.
 """
 from __future__ import annotations
 
-import json
 import re
 from collections import defaultdict
-from typing import Optional
 
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_anonymizer import AnonymizerEngine
@@ -95,7 +93,6 @@ class PIIMaskingService:
         try:
             # Build per-entity-type counters for deterministic token naming
             type_counters: dict[str, int] = defaultdict(int)
-            token_map: dict[str, str] = {}  # token -> operator config
             reverse_map: dict[str, str] = {}  # token -> original value
 
             operators: dict[str, OperatorConfig] = {}

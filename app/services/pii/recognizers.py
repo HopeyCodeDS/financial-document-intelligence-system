@@ -8,7 +8,6 @@ Supplements the built-in recognizers with financial-domain patterns:
 """
 from __future__ import annotations
 
-import re
 
 from presidio_analyzer import Pattern, PatternRecognizer
 
