@@ -6,7 +6,6 @@ via the AbstractLLMClient interface. The active provider is selected in config.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
 
 from app.config import LLMProvider, Settings
 from app.core.logging import get_logger

@@ -17,7 +17,6 @@ from app.models.document import DocumentType
 from app.schemas.extraction import (
     BankStatementExtraction,
     ExtractionPayload,
-    FieldExtraction,
     InvoiceExtraction,
     PortfolioExtraction,
 )

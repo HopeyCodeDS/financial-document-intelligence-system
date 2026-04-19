@@ -17,9 +17,7 @@ from tenacity import (
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    before_sleep_log,
 )
-import structlog
 
 from app.core.exceptions import LLMExtractionError, LLMRateLimitError
 from app.core.logging import get_logger
