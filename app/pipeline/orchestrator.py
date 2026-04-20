@@ -85,7 +85,7 @@ class PipelineOrchestrator:
             file_path=document.file_path,
         )
 
-        log = structlog.contextvars.bind_contextvars(document_id=str(document_id))
+        structlog.contextvars.bind_contextvars(document_id=str(document_id))
         logger.info("pipeline_started", document_type=document.document_type.value)
 
         # Status transitions per step

@@ -9,7 +9,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Optional
 
 from app.models.document import DocumentStatus, DocumentType
 from app.schemas.extraction import ExtractionPayload
