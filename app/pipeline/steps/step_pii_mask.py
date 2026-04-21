@@ -11,7 +11,6 @@ import json
 from app.config import Settings
 from app.core.exceptions import PIIMaskingError
 from app.core.logging import get_logger
-from app.db.repositories.document import DocumentRepository
 from app.models.pii_mapping import PIIMapping
 from app.pipeline.context import PipelineContext
 from app.pipeline.steps.base import AbstractPipelineStep
