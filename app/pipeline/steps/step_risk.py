@@ -1,7 +1,6 @@
 """Pipeline step: risk detection."""
 from __future__ import annotations
 
-from app.config import Settings
 from app.core.logging import get_logger
 from app.pipeline.context import PipelineContext
 from app.pipeline.steps.base import AbstractPipelineStep
