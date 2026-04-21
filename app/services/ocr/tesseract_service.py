@@ -7,7 +7,6 @@ Used as a fallback when pdfplumber finds no extractable text.
 from __future__ import annotations
 
 import asyncio
-import io
 
 from app.core.exceptions import OCRError, OCRPageExtractionError
 from app.core.logging import get_logger
@@ -43,7 +42,6 @@ class TesseractService(AbstractOCRService):
         """Synchronous extraction — runs in thread pool to avoid blocking event loop."""
         try:
             from pdf2image import convert_from_bytes
-            import pytesseract
         except ImportError as exc:
             raise OCRError(f"Tesseract dependencies not installed: {exc}") from exc
 

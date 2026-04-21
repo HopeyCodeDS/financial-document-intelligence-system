@@ -7,9 +7,7 @@ Uses the doctr library which provides a deep-learning OCR pipeline.
 from __future__ import annotations
 
 import asyncio
-import io
 
-import numpy as np
 
 from app.core.exceptions import OCRError, OCRPageExtractionError
 from app.core.logging import get_logger
@@ -52,7 +50,6 @@ class DoctrService(AbstractOCRService):
 
     def _extract_sync(self, file_bytes: bytes, document_id: str) -> list[PageOCRResult]:
         try:
-            from pdf2image import convert_from_bytes
             from doctr.io import DocumentFile
         except ImportError as exc:
             raise OCRError(f"doctr dependencies not installed: {exc}") from exc
