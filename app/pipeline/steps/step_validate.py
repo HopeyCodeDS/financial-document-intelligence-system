@@ -1,7 +1,6 @@
 """Pipeline step: validation engine."""
 from __future__ import annotations
 
-import uuid
 
 from app.core.logging import get_logger
 from app.models.extraction import ValidationStatus
@@ -33,7 +32,6 @@ class StepValidate(AbstractPipelineStep):
 
         # Update the ExtractionResult DB record
         from sqlalchemy.ext.asyncio import AsyncSession
-        from sqlalchemy import select
         from app.models.extraction import ExtractionResult
 
         session: AsyncSession = self._session  # type: ignore[assignment]
