@@ -71,7 +71,6 @@ class OllamaClient(AbstractLLMClient):
         enforce valid JSON output from Ollama.
         """
         json_schema = json.dumps(tool["input_schema"], indent=2)
-        tool_name = tool["name"]
 
         # Build a system prompt that instructs the model to output strict JSON
         enhanced_system = (
