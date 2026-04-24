@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
 
 import structlog
 from fastapi import FastAPI, Request, status
@@ -22,14 +21,7 @@ from fastapi.responses import JSONResponse
 from app.api.router import api_router
 from app.config import AppEnv, get_settings
 from app.core.exceptions import (
-    AuthenticationError,
-    AuthorizationError,
-    DocumentNotFoundError,
     FDISError,
-    FileTooLargeError,
-    InvalidFileTypeError,
-    ReviewAlreadyDecidedError,
-    ReviewTaskNotFoundError,
 )
 from app.core.logging import configure_logging
 from app.db.session import close_db, init_db
