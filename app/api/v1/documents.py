@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -19,6 +19,7 @@ from app.core.exceptions import (
     FileTooLargeError,
     InvalidFileTypeError,
 )
+from app.core.request_context import new_request_id
 from app.db.repositories.document import DocumentRepository
 from app.db.session import get_db_session
 from app.dependencies import CurrentUser, get_app_settings
@@ -33,6 +34,7 @@ from app.services.storage import LocalStorageService
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 ALLOWED_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
+PDF_MAGIC_BYTES = b"%PDF-"
 
 
 @router.post(
@@ -42,6 +44,7 @@ ALLOWED_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
     summary="Upload a financial document for processing",
 )
 async def upload_document(
+    request: Request,
     file: Annotated[UploadFile, File(description="PDF file to process")],
     document_type: Annotated[
         DocumentType, Form(description="Type of financial document")
@@ -58,13 +61,21 @@ async def upload_document(
     """
     # Validate content type
     content_type = file.content_type or ""
-    if content_type not in ALLOWED_CONTENT_TYPES and not file.filename.endswith(".pdf"):
+    filename = file.filename or ""
+    if content_type not in ALLOWED_CONTENT_TYPES and not filename.lower().endswith(".pdf"):
         raise InvalidFileTypeError(content_type)
 
     # Read and validate file size
     content = await file.read()
     if len(content) > settings.storage_max_file_size_bytes:
         raise FileTooLargeError(len(content), settings.storage_max_file_size_bytes)
+
+    # Validate PDF signature — extension and Content-Type can be spoofed,
+    # so we verify the actual file bytes start with the PDF magic header.
+    if not content.startswith(PDF_MAGIC_BYTES):
+        raise InvalidFileTypeError(
+            f"{content_type or 'unknown'} (missing PDF signature)"
+        )
 
     # Persist to storage
     doc_id = uuid.uuid4()
@@ -86,9 +97,11 @@ async def upload_document(
     )
     await repo.save(document)
 
-    # Enqueue processing task
+    # Enqueue processing task. Pass the inbound request ID so the Celery
+    # worker can re-bind it for end-to-end log correlation.
+    request_id = getattr(request.state, "request_id", None) or new_request_id()
     from app.tasks.document_tasks import process_document
-    task = process_document.delay(str(doc_id))
+    task = process_document.delay(str(doc_id), request_id=request_id)
 
     # Update status to processing
     await repo.update_status(doc_id, DocumentStatus.processing)
