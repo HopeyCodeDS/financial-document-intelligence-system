@@ -82,7 +82,9 @@ async def submit_review_decision(
     decision_repo = ReviewDecisionRepository(db)
     audit = AuditLogger(db)
 
-    task = await task_repo.get_by_id(task_id)
+    # Lock the row for the duration of this transaction so concurrent
+    # reviewers cannot both observe status='pending' and double-decide.
+    task = await task_repo.get_for_update(task_id)
     if task is None:
         raise ReviewTaskNotFoundError(str(task_id))
 

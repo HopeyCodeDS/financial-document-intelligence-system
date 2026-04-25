@@ -47,6 +47,22 @@ class ReviewTaskRepository(BaseRepository[ReviewTask]):
         await self._session.flush()
         return task
 
+    async def get_for_update(self, task_id: uuid.UUID) -> ReviewTask | None:
+        """Fetch a review task with a row-level lock (SELECT ... FOR UPDATE).
+
+        Use this from any flow that reads-then-writes the task to prevent two
+        concurrent reviewers from both seeing status='pending' and each
+        creating a decision. The lock is released when the surrounding
+        transaction commits or rolls back.
+        """
+        query = (
+            select(ReviewTask)
+            .where(ReviewTask.id == task_id)
+            .with_for_update()
+        )
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()
+
 
 class ReviewDecisionRepository(BaseRepository[ReviewDecision]):
     model = ReviewDecision
