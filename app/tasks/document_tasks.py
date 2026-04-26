@@ -11,6 +11,7 @@ import uuid
 
 import structlog
 
+from app.core.request_context import bind_request_id
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
@@ -22,15 +23,29 @@ logger = structlog.get_logger(__name__)
     max_retries=3,
     default_retry_delay=30,
 )
-def process_document(self: object, document_id: str) -> dict:  # type: ignore[misc]
+def process_document(  # type: ignore[misc]
+    self: object,
+    document_id: str,
+    request_id: str | None = None,
+) -> dict:
     """
     Entry point for the full document processing pipeline.
 
     Runs the async orchestrator in a new event loop (Celery workers are sync).
     Returns a summary dict written to the Celery result backend.
+
+    The optional ``request_id`` is propagated from the originating HTTP
+    request and bound into the structlog context so worker logs can be
+    correlated with API logs and audit events.
     """
     doc_uuid = uuid.UUID(document_id)
-    log = logger.bind(document_id=document_id, task_id=getattr(self, "request", {}).get("id"))
+    bound_request_id = bind_request_id(request_id)
+
+    log = logger.bind(
+        document_id=document_id,
+        task_id=getattr(self, "request", {}).get("id"),
+        request_id=bound_request_id,
+    )
 
     log.info("pipeline_task_started")
 
