@@ -7,7 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: LogFormat = LogFormat.console
 
+    # ── Startup behaviour ─────────────────────────────────────────────────────
+    # When true, the lifespan handler will not probe Redis / LLM at boot.
+    # Used by the test suite so tests don't require those services running.
+    skip_startup_checks: bool = False
+
     # ── Derived properties ────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:
@@ -126,6 +131,24 @@ class Settings(BaseSettings):
         if upper not in valid:
             raise ValueError(f"log_level must be one of {valid}")
         return upper
+
+    @model_validator(mode="after")
+    def validate_llm_credentials(self) -> "Settings":
+        """Reject configurations that select a provider without its credentials.
+
+        Catches the deployment foot-gun where ``LLM_PROVIDER=anthropic`` but
+        ``ANTHROPIC_API_KEY`` was never set — the failure would otherwise
+        surface only on the first extraction call.
+        """
+        if self.llm_provider == LLMProvider.anthropic and not self.anthropic_api_key:
+            raise ValueError(
+                "anthropic_api_key is required when llm_provider=anthropic"
+            )
+        if self.llm_provider == LLMProvider.ollama and not self.ollama_base_url:
+            raise ValueError(
+                "ollama_base_url is required when llm_provider=ollama"
+            )
+        return self
 
 
 def get_settings() -> Settings:
