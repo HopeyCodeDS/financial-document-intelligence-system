@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import DocumentNotFoundError
 from app.db.repositories.extraction import ExtractionResultRepository
 from app.db.session import get_db_session
-from app.dependencies import CurrentUser
+from app.dependencies import get_current_user
 from app.schemas.extraction_response import ExtractionResultResponse
 
 router = APIRouter(prefix="/extractions", tags=["Extractions"])
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/extractions", tags=["Extractions"])
 async def get_extraction_result(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> ExtractionResultResponse:
     repo = ExtractionResultRepository(db)
     result = await repo.get_by_document_id(document_id)

@@ -22,7 +22,7 @@ from app.core.exceptions import (
 from app.core.request_context import new_request_id
 from app.db.repositories.document import DocumentRepository
 from app.db.session import get_db_session
-from app.dependencies import CurrentUser, get_app_settings
+from app.dependencies import get_current_user, get_app_settings
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.schemas.document import (
     DocumentListResponse,
@@ -51,7 +51,7 @@ async def upload_document(
     ],
     db: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_app_settings),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> DocumentUploadResponse:
     """
     Accept a PDF document and enqueue it for processing.
@@ -121,7 +121,7 @@ async def upload_document(
 async def get_document(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> DocumentStatusResponse:
     repo = DocumentRepository(db)
     document = await repo.get_by_id(document_id)
@@ -142,7 +142,7 @@ async def list_documents(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> DocumentListResponse:
     repo = DocumentRepository(db)
     offset = (page - 1) * page_size
