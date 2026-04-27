@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.repositories.audit_log import AuditLogRepository
 from app.db.session import get_db_session
-from app.dependencies import CurrentUser
+from app.dependencies import get_current_user
 from app.schemas.audit import AuditLogListResponse, AuditLogResponse
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
@@ -30,7 +30,7 @@ async def query_audit_log(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> AuditLogListResponse:
     repo = AuditLogRepository(db)
     offset = (page - 1) * page_size
@@ -61,7 +61,7 @@ async def get_document_audit_trail(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> AuditLogListResponse:
     repo = AuditLogRepository(db)
     offset = (page - 1) * page_size
