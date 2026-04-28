@@ -67,8 +67,14 @@ class Document(Base, UUIDMixin, TimestampMixin):
     pii_mappings: Mapped[list] = relationship(
         "PIIMapping", back_populates="document", cascade="all, delete-orphan"
     )
+    # Soft relationship — AuditLog.document_id is intentionally not a real
+    # FK (system events can have no document), so we must declare the join
+    # explicitly on this side too.
     audit_logs: Mapped[list] = relationship(
-        "AuditLog", back_populates="document"
+        "AuditLog",
+        primaryjoin="Document.id == foreign(AuditLog.document_id)",
+        back_populates="document",
+        viewonly=True,
     )
     review_tasks: Mapped[list] = relationship(
         "ReviewTask", back_populates="document", cascade="all, delete-orphan"
