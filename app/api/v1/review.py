@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ReviewAlreadyDecidedError, ReviewTaskNotFoundError
 from app.db.repositories.review import ReviewDecisionRepository, ReviewTaskRepository
 from app.db.session import get_db_session
-from app.dependencies import CurrentUser
+from app.dependencies import get_current_user
 from app.models.audit_log import AuditEventStatus
 from app.models.review import ReviewDecision, ReviewTaskStatus
 from app.schemas.review import (
@@ -40,7 +40,7 @@ async def list_review_queue(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> ReviewTaskListResponse:
     repo = ReviewTaskRepository(db)
     offset = (page - 1) * page_size
@@ -57,7 +57,7 @@ async def list_review_queue(
 async def get_review_task(
     task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> ReviewTaskResponse:
     repo = ReviewTaskRepository(db)
     task = await repo.get_by_id(task_id)
@@ -76,7 +76,7 @@ async def submit_review_decision(
     task_id: uuid.UUID,
     body: SubmitReviewDecisionRequest,
     db: AsyncSession = Depends(get_db_session),
-    current_user: str = Depends(CurrentUser),  # type: ignore[misc]
+    current_user: str = Depends(get_current_user),
 ) -> ReviewDecisionResponse:
     task_repo = ReviewTaskRepository(db)
     decision_repo = ReviewDecisionRepository(db)
