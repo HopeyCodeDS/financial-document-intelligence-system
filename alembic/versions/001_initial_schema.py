@@ -71,8 +71,8 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
         sa.Column("filename", sa.String(255), nullable=False),
-        sa.Column("document_type", sa.Enum(name="document_type_enum"), nullable=False),
-        sa.Column("status", sa.Enum(name="document_status_enum"), nullable=False,
+        sa.Column("document_type", document_type_enum, nullable=False),
+        sa.Column("status", document_status_enum, nullable=False,
                   server_default="uploaded"),
         sa.Column("file_path", sa.String(512), nullable=False),
         sa.Column("file_hash", sa.String(64), nullable=False),
@@ -102,10 +102,10 @@ def upgrade() -> None:
         sa.Column("structured_data", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("confidence_scores", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("overall_confidence", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("validation_status", sa.Enum(name="validation_status_enum"), nullable=False),
+        sa.Column("validation_status", validation_status_enum, nullable=False),
         sa.Column("validation_violations", postgresql.JSONB(), nullable=False,
                   server_default="[]"),
-        sa.Column("risk_level", sa.Enum(name="risk_level_enum"), nullable=False,
+        sa.Column("risk_level", risk_level_enum, nullable=False,
                   server_default="low"),
         sa.Column("risk_flags", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column("created_at", sa.DateTime(timezone=True),
@@ -122,13 +122,13 @@ def upgrade() -> None:
                   server_default=sa.text("gen_random_uuid()")),
         sa.Column("document_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("event_type", sa.String(100), nullable=False),
-        sa.Column("event_category", sa.Enum(name="audit_event_category_enum"), nullable=False),
+        sa.Column("event_category", audit_event_category_enum, nullable=False),
         sa.Column("actor", sa.String(255), nullable=False),
         sa.Column("timestamp", sa.DateTime(timezone=True),
                   server_default=sa.text("now()"), nullable=False),
         sa.Column("step_name", sa.String(100), nullable=True),
         sa.Column("duration_ms", sa.Integer(), nullable=True),
-        sa.Column("status", sa.Enum(name="audit_event_status_enum"), nullable=False),
+        sa.Column("status", audit_event_status_enum, nullable=False),
         sa.Column("details", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("ip_address", sa.String(45), nullable=True),
         sa.Column("session_id", sa.String(128), nullable=True),
@@ -137,6 +137,18 @@ def upgrade() -> None:
     op.create_index("ix_audit_logs_event_type", "audit_logs", ["event_type"])
     op.create_index("ix_audit_logs_timestamp", "audit_logs", ["timestamp"])
     op.create_index("ix_audit_logs_actor", "audit_logs", ["actor"])
+
+    # Immutability trigger function — defined here (in addition to
+    # docker/postgres/init.sql, which is only loaded by docker-compose) so
+    # the migration is self-sufficient against any fresh Postgres database.
+    op.execute("""
+        CREATE OR REPLACE FUNCTION prevent_audit_log_mutation()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            RAISE EXCEPTION 'audit_log records are immutable - UPDATE and DELETE are forbidden';
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
 
     # Immutability trigger on audit_logs
     op.execute("""
@@ -169,10 +181,10 @@ def upgrade() -> None:
                   sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False),
         sa.Column("extraction_result_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("extraction_results.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("priority", sa.Enum(name="review_priority_enum"), nullable=False,
+        sa.Column("priority", review_priority_enum, nullable=False,
                   server_default="medium"),
         sa.Column("trigger_reason", sa.Text(), nullable=False),
-        sa.Column("status", sa.Enum(name="review_task_status_enum"), nullable=False,
+        sa.Column("status", review_task_status_enum, nullable=False,
                   server_default="pending"),
         sa.Column("assigned_to", sa.String(255), nullable=True),
         sa.Column("due_by", sa.DateTime(timezone=True), nullable=True),
@@ -194,7 +206,7 @@ def upgrade() -> None:
         sa.Column("reviewer_id", sa.String(255), nullable=False),
         sa.Column("decided_at", sa.DateTime(timezone=True),
                   server_default=sa.text("now()"), nullable=False),
-        sa.Column("decision", sa.Enum(name="review_decision_type_enum"), nullable=False),
+        sa.Column("decision", review_decision_type_enum, nullable=False),
         sa.Column("confidence_override", sa.Float(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("corrections", postgresql.JSONB(), nullable=True),
