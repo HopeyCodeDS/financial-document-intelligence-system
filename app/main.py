@@ -24,6 +24,8 @@ from app.core.exceptions import (
     FDISError,
 )
 from app.core.logging import configure_logging
+from app.core.request_context import RequestIDMiddleware
+from app.core.startup_checks import run_startup_checks
 from app.db.session import close_db, init_db
 
 settings = get_settings()
@@ -41,11 +43,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = structlog.get_logger(__name__)
     logger.info("fdis_starting", env=settings.app_env.value)
 
-    # Database
+    # Database — must be initialised before health checks can probe it.
     init_db(
         database_url=settings.database_url,
         echo=settings.app_debug and settings.app_env == AppEnv.development,
     )
+
+    # Verify all hard dependencies are reachable before accepting traffic.
+    # Skipped in test mode so unit/integration tests don't require a live
+    # Redis or LLM provider; the integration suite relies on dependency
+    # overrides for those resources.
+    if not getattr(settings, "skip_startup_checks", False):
+        await run_startup_checks(settings)
+
     logger.info("startup_complete")
 
     yield
@@ -71,6 +81,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # ── Request correlation ───────────────────────────────────────────────────
+    # Must be added before CORS so the request ID is bound for the entire
+    # request lifecycle, including any preflight handling.
+    app.add_middleware(RequestIDMiddleware)
+
     # ── CORS ──────────────────────────────────────────────────────────────────
     origins = ["http://localhost:3000", "http://localhost:8080"]
     if settings.is_production:
@@ -82,6 +97,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
     )
 
     # ── Prometheus metrics ────────────────────────────────────────────────────
