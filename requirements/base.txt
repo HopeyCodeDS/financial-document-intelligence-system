@@ -7,6 +7,7 @@ python-multipart==0.0.20
 # ── Validation ────────────────────────────────────────────────────────────────
 pydantic==2.10.4
 pydantic-settings==2.7.0
+email-validator==2.2.0                       # Backs pydantic's EmailStr
 
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy[asyncio]==2.0.36
