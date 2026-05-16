@@ -11,11 +11,13 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.core.exceptions import (
     DocumentNotFoundError,
+    FileNotFoundInStorageError,
     FileTooLargeError,
     InvalidFileTypeError,
 )
@@ -23,12 +25,14 @@ from app.core.request_context import new_request_id
 from app.db.repositories.document import DocumentRepository
 from app.db.session import get_db_session
 from app.dependencies import get_current_user, get_app_settings
+from app.models.audit_log import AuditEventCategory, AuditEventStatus
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.schemas.document import (
     DocumentListResponse,
     DocumentStatusResponse,
     DocumentUploadResponse,
 )
+from app.services.audit.logger import AuditLogger
 from app.services.storage import LocalStorageService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -128,6 +132,85 @@ async def get_document(
     if document is None:
         raise DocumentNotFoundError(str(document_id))
     return DocumentStatusResponse.model_validate(document)
+
+
+@router.get(
+    "/{document_id}/file",
+    response_class=StreamingResponse,
+    summary="Stream the original PDF for a document",
+    responses={
+        200: {"content": {"application/pdf": {}}},
+        404: {"description": "Document or stored file not found"},
+    },
+)
+async def get_document_file(
+    document_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_app_settings),
+    current_user: str = Depends(get_current_user),
+) -> StreamingResponse:
+    """Stream the original PDF bytes back to an authenticated client.
+
+    Recorded as a `document.file_accessed` security event so any download is
+    visible in the audit trail. The byte stream is yielded in 64 KiB chunks
+    so the API process never holds the full document in memory.
+    """
+    repo = DocumentRepository(db)
+    document = await repo.get_by_id(document_id)
+    if document is None:
+        raise DocumentNotFoundError(str(document_id))
+
+    storage = LocalStorageService(root=settings.storage_local_root)
+    audit = AuditLogger(db)
+
+    try:
+        content = await storage.load(document.file_path)
+    except FileNotFoundInStorageError:
+        # Use base log() so document_id is set on the row, letting
+        # /audit/document/{id} surface the failed access.
+        await audit.log(
+            event_type="document.file_accessed",
+            category=AuditEventCategory.security,
+            actor=current_user,
+            status=AuditEventStatus.failure,
+            document_id=document_id,
+            details={"reason": "file_missing_in_storage"},
+            ip_address=request.client.host if request.client else None,
+        )
+        await db.commit()
+        raise
+
+    await audit.log(
+        event_type="document.file_accessed",
+        category=AuditEventCategory.security,
+        actor=current_user,
+        status=AuditEventStatus.success,
+        document_id=document_id,
+        details={
+            "filename": document.filename,
+            "size_bytes": document.file_size_bytes,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
+    chunk_size = 64 * 1024
+
+    def _iter_chunks() -> object:
+        for offset in range(0, len(content), chunk_size):
+            yield content[offset : offset + chunk_size]
+
+    safe_filename = document.filename.replace('"', "").replace("\n", "")
+    return StreamingResponse(
+        _iter_chunks(),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename}"',
+            "Content-Length": str(len(content)),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get(
