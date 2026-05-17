@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.document import DocumentStatus, DocumentType
 
@@ -25,7 +25,11 @@ class DocumentUploadResponse(BaseModel):
 class DocumentStatusResponse(BaseModel):
     """Current processing state of a document."""
 
-    document_id: uuid.UUID
+    # ORM column is ``id``; the public API has always advertised ``document_id``.
+    # The alias maps ``Document.id`` → ``document_id`` for ``model_validate``,
+    # while ``populate_by_name`` keeps direct ``DocumentStatusResponse(document_id=...)``
+    # construction working in tests and other call sites.
+    document_id: uuid.UUID = Field(validation_alias="id")
     filename: str
     document_type: DocumentType
     status: DocumentStatus
@@ -36,7 +40,7 @@ class DocumentStatusResponse(BaseModel):
     updated_at: datetime
     error_message: str | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class DocumentListResponse(BaseModel):
