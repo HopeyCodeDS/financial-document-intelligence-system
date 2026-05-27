@@ -90,6 +90,24 @@ services:
       redis:
         condition: service_healthy
 
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      target: production
+    container_name: fdis-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - FDIS_API_BASE_URL=http://api:8000
+      - AUTH_COOKIE_NAME=fdis_session
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
   # ── Celery Flower (monitoring) ────────────────────────────────────────────────
   flower:
     image: mher/flower:2.0
