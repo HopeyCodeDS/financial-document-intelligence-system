@@ -24,13 +24,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements/base.txt requirements/base.txt
 RUN pip install --prefix=/install -r requirements/base.txt
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_lg --target /install/lib/python3.11/site-packages
+# Download spaCy model (PYTHONPATH makes the just-installed spaCy visible to the interpreter)
+RUN PYTHONPATH=/install/lib/python3.11/site-packages \
+    python -m spacy download en_core_web_lg --target /install/lib/python3.11/site-packages
 
 # ── Stage 3: development ──────────────────────────────────────────────────────
 FROM base AS development
 
 COPY --from=builder /install /usr/local
+COPY requirements/base.txt requirements/base.txt
 COPY requirements/dev.txt requirements/dev.txt
 RUN pip install -r requirements/dev.txt
 

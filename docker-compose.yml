@@ -38,6 +38,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Migrations (one-shot) ───────────────────────────────────────────────────
+  # Applies Alembic migrations to bring the DB schema up to head, then exits.
+  # api and worker wait for this to complete so they never see a stale schema.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      target: production
+    container_name: fdis-migrate
+    restart: "no"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ── API ─────────────────────────────────────────────────────────────────────
   api:
     build:
@@ -61,6 +79,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 30s
@@ -89,6 +109,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # ── Frontend (Next.js) ──────────────────────────────────────────────────────
   frontend:

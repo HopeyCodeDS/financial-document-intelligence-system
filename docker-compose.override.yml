@@ -2,6 +2,39 @@ version: "3.9"
 
 # Development overrides — hot reload, exposed ports, source mounts
 services:
+  migrate:
+    build:
+      target: development
+    volumes:
+      - .:/app
+    environment:
+      - APP_ENV=development
+      - LOG_FORMAT=console
+
+  # Dev-only: populate demo accounts so the UI walkthrough works out of the box.
+  # Defined here (not in docker-compose.yml) because seed_users.py uses weak
+  # demo passwords and must never run in production.
+  seed:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      target: development
+    container_name: fdis-seed
+    restart: "no"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - APP_ENV=development
+      - LOG_FORMAT=console
+    volumes:
+      - .:/app
+    command: ["python", "-m", "scripts.seed_users"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   api:
     build:
       target: development
@@ -13,6 +46,15 @@ services:
       - APP_ENV=development
       - APP_DEBUG=true
       - LOG_FORMAT=console
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -24,3 +66,28 @@ services:
     environment:
       - APP_ENV=development
       - LOG_FORMAT=console
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      target: development
+    command: pnpm dev --hostname 0.0.0.0 --port 3000
+    # Mount source for hot reload, but keep the image's node_modules and
+    # .next so host/container binary mismatches and stale builds don't
+    # break dev. Same trick the API service uses.
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - FDIS_API_BASE_URL=http://api:8000
+      - AUTH_COOKIE_NAME=fdis_session
