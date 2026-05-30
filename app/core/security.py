@@ -6,20 +6,27 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.exceptions import AuthenticationError
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_BCRYPT_MAX_BYTES = 72
+
+
+def _to_bcrypt_bytes(plain: str) -> bytes:
+    return plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    return bcrypt.hashpw(_to_bcrypt_bytes(plain), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_to_bcrypt_bytes(plain), hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def create_access_token(
