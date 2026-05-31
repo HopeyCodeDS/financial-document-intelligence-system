@@ -5,9 +5,11 @@ Step execution order is HARDCODED and non-negotiable:
 1. OCR          (critical) — extract text
 2. PII Mask     (critical) — mask before LLM — MUST come before StepLLMExtract
 3. LLM Extract  (non-critical)
-4. Validate     (non-critical)
-5. Risk Detect  (non-critical)
-6. Audit        (critical) — always write audit trail
+4. Unmask       (non-critical) — restore real values before normalise/validate
+5. Normalize    (non-critical) — canonicalise dates (DD-MM-YYYY) and currency
+6. Validate     (non-critical)
+7. Risk Detect  (non-critical)
+8. Audit        (critical) — always write audit trail
 
 If a critical step fails, pipeline halts immediately.
 If a non-critical step fails, the error is recorded and subsequent steps still run.
@@ -28,9 +30,11 @@ from app.models.document import DocumentStatus
 from app.pipeline.context import PipelineContext
 from app.pipeline.steps.base import AbstractPipelineStep
 from app.pipeline.steps.step_llm_extract import StepLLMExtract
+from app.pipeline.steps.step_normalize import StepNormalize
 from app.pipeline.steps.step_ocr import StepOCR
 from app.pipeline.steps.step_pii_mask import StepPIIMask
 from app.pipeline.steps.step_risk import StepRisk
+from app.pipeline.steps.step_unmask import StepUnmask
 from app.pipeline.steps.step_validate import StepValidate
 from app.services.llm.extractor import LLMExtractionService
 from app.services.ocr.router import OCRRouter
@@ -58,11 +62,19 @@ class PipelineOrchestrator:
         validation_engine = ValidationEngine()
         risk_detector = RiskDetectionService(settings)
 
-        # Build ordered step list
+        # Build ordered step list. Ordering invariants:
+        #   - StepPIIMask MUST precede StepLLMExtract (LLM never sees raw PII).
+        #   - StepUnmask MUST follow StepLLMExtract and precede StepNormalize
+        #     so the normaliser sees real values rather than mask tokens.
+        #   - StepNormalize MUST precede StepValidate so validation rules
+        #     (DateFormatRule, CurrencyCodeRule) match against the canonical
+        #     shape the analyst will see in the UI.
         self._steps: list[AbstractPipelineStep] = [
             StepOCR(storage=storage, ocr_router=ocr_router),
             StepPIIMask(masker=masker, settings=settings, db_session=session),
             StepLLMExtract(extractor=llm_extractor, settings=settings, db_session=session),
+            StepUnmask(settings=settings, db_session=session),
+            StepNormalize(db_session=session),
             StepValidate(engine=validation_engine, db_session=session),
             StepRisk(detector=risk_detector, db_session=session),
         ]
@@ -149,7 +161,11 @@ class PipelineOrchestrator:
             DocumentStatus(context.final_status),
         )
 
-        await self._write_audit_event(context, "orchestrator", "success")
+        audit_status = (
+            "failure" if context.final_status == DocumentStatus.failed.value else "success"
+        )
+        audit_error = "; ".join(context.errors) if audit_status == "failure" and context.errors else None
+        await self._write_audit_event(context, "orchestrator", audit_status, audit_error)
 
         logger.info(
             "pipeline_complete",
