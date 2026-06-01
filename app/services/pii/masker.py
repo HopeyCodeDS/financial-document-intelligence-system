@@ -26,7 +26,6 @@ from app.services.pii.recognizers import get_custom_recognizers
 
 logger = get_logger(__name__)
 
-# Entity types to detect — ordered by priority
 SUPPORTED_ENTITIES = [
     "PERSON",
     "IBAN",
@@ -35,7 +34,6 @@ SUPPORTED_ENTITIES = [
     "EMAIL_ADDRESS",
     "PHONE_NUMBER",
     "LOCATION",
-    "DATE_TIME",
     "NRP",  # Nationality, religious, political
 ]
 
