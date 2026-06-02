@@ -13,10 +13,12 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ReviewAlreadyDecidedError, ReviewTaskNotFoundError
+from app.db.repositories.document import DocumentRepository
 from app.db.repositories.review import ReviewDecisionRepository, ReviewTaskRepository
 from app.db.session import get_db_session
 from app.dependencies import get_current_user
 from app.models.audit_log import AuditEventStatus
+from app.models.document import DocumentStatus
 from app.models.review import ReviewDecision, ReviewTaskStatus
 from app.schemas.review import (
     ReviewDecisionResponse,
@@ -113,6 +115,21 @@ async def submit_review_decision(
 
     # Update task status
     await task_repo.update_status(task_id, new_status)
+
+    # Advance the parent document's status so the UI stops polling.
+    # Approved → reviewed (terminal, accepted by a human).
+    # Rejected → failed (the extraction was wrong; doc is closed out).
+    # Escalated / needs_correction → leave at validated; another reviewer or
+    # corrective action will move it forward.
+    doc_repo = DocumentRepository(db)
+    if new_status == ReviewTaskStatus.approved:
+        await doc_repo.update_status(task.document_id, DocumentStatus.reviewed)
+    elif new_status == ReviewTaskStatus.rejected:
+        await doc_repo.update_status(
+            task.document_id,
+            DocumentStatus.failed,
+            error_message=f"Rejected by reviewer ({current_user})",
+        )
 
     await db.flush()
     await db.refresh(decision)
