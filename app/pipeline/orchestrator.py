@@ -54,7 +54,6 @@ class PipelineOrchestrator:
         self._settings = settings
         self._doc_repo = DocumentRepository(session)
 
-        # Build services
         storage = LocalStorageService(root=settings.storage_local_root)
         ocr_router = OCRRouter()
         masker = PIIMaskingService()
@@ -62,13 +61,6 @@ class PipelineOrchestrator:
         validation_engine = ValidationEngine()
         risk_detector = RiskDetectionService(settings)
 
-        # Build ordered step list. Ordering invariants:
-        #   - StepPIIMask MUST precede StepLLMExtract (LLM never sees raw PII).
-        #   - StepUnmask MUST follow StepLLMExtract and precede StepNormalize
-        #     so the normaliser sees real values rather than mask tokens.
-        #   - StepNormalize MUST precede StepValidate so validation rules
-        #     (DateFormatRule, CurrencyCodeRule) match against the canonical
-        #     shape the analyst will see in the UI.
         self._steps: list[AbstractPipelineStep] = [
             StepOCR(storage=storage, ocr_router=ocr_router),
             StepPIIMask(masker=masker, settings=settings, db_session=session),
@@ -82,11 +74,7 @@ class PipelineOrchestrator:
     async def run(self, document_id: uuid.UUID) -> PipelineContext:
         """
         Execute the full pipeline for a document.
-
-        Updates document status in DB at each stage.
-        Always writes audit events regardless of success/failure.
         """
-        # Load document to get type and file path
         document = await self._doc_repo.get_by_id(document_id)
         if document is None:
             raise PipelineError("orchestrator", f"Document {document_id} not found")
@@ -149,12 +137,21 @@ class PipelineOrchestrator:
                     await self._write_audit_event(context, step.name, "failure", str(exc))
                     raise PipelineError(step.name, str(exc)) from exc
 
-        # Determine final status
+        # Determine final status.
+        #
+        # A document is *validated* only while waiting on a human reviewer.
+        # If the risk detector did not flag the document for review, the
+        # pipeline auto-clears it to *reviewed* so the UI stops polling
+        # and the doc reaches a terminal state. If review IS required, the
+        # status stays *validated* — a ReviewTask was created in step_risk
+        # and the document advances to *reviewed* when that task is approved.
         has_errors = any("failed" in e.lower() for e in context.errors)
         if has_errors or not context.extraction_result:
             context.final_status = DocumentStatus.failed.value
-        else:
+        elif context.risk_assessment and context.risk_assessment.requires_review:
             context.final_status = DocumentStatus.validated.value
+        else:
+            context.final_status = DocumentStatus.reviewed.value
 
         await self._doc_repo.update_status(
             document_id,
