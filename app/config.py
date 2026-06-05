@@ -74,10 +74,12 @@ class Settings(BaseSettings):
     # ── LLM (Ollama) — required only when llm_provider=ollama ────────────────
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:14b"
-    ollama_timeout_seconds: int = Field(120, ge=10, le=600)
+    ollama_timeout_seconds: int = Field(120, ge=10, le=1800)
     ollama_max_retries: int = Field(2, ge=0, le=5)
     ollama_temperature: float = Field(0.0, ge=0.0, le=2.0)
     ollama_num_ctx: int = Field(8192, ge=2048, le=131072)
+    # Ollama keep_alive: how long the model stays resident after a call.
+    ollama_keep_alive: str = "24h"
 
     # ── PII / Encryption ──────────────────────────────────────────────────────
     # 32-byte base64-encoded AES-256 key
@@ -134,11 +136,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_llm_credentials(self) -> "Settings":
-        """Reject configurations that select a provider without its credentials.
-
-        Catches the deployment foot-gun where ``LLM_PROVIDER=anthropic`` but
-        ``ANTHROPIC_API_KEY`` was never set — the failure would otherwise
-        surface only on the first extraction call.
+        """
+        Reject configurations that select a provider without its credentials.
         """
         if self.llm_provider == LLMProvider.anthropic and not self.anthropic_api_key:
             raise ValueError(
@@ -156,4 +155,4 @@ def get_settings() -> Settings:
 
     In tests, override by patching this function or using dependency injection.
     """
-    return Settings()  # type: ignore[call-arg]
+    return Settings()  
