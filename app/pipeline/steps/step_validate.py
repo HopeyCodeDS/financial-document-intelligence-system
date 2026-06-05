@@ -37,12 +37,22 @@ class StepValidate(AbstractPipelineStep):
         session: AsyncSession = self._session  # type: ignore[assignment]
         db_record = await session.get(ExtractionResult, context.extraction_db_id)
         if db_record:
-            db_record.validation_status = (
-                ValidationStatus.passed if result.passed else ValidationStatus.failed
-            )
+            db_record.validation_status = _map_status(result)
             db_record.validation_violations = [
                 v.model_dump() for v in result.violations
             ]
             await session.flush()
 
         return context
+
+
+def _map_status(result) -> ValidationStatus:
+    """
+    Three-way mapping.
+
+    """
+    if result.errored_count > 0:
+        return ValidationStatus.partial
+    if result.error_count > 0:
+        return ValidationStatus.failed
+    return ValidationStatus.passed
